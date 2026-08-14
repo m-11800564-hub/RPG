@@ -2,3 +2,4 @@ streamlit>=1.30.0
 mediapipe>=0.10.0
 opencv-python-headless>=4.8.0.76
 numpy<2.0.0
+pip install streamlit streamlit-webrtc mediapipe opencv-python
