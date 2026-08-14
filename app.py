@@ -1,20 +1,3 @@
-from __future__ import annotations
-import os
-import sys
-
-# Force OpenCV to run in headless/dummy mode before importing cv2
-os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "0"
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
-
-import cv2
-import numpy as np
-import streamlit as st
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
-import av
-import mediapipe as mp
-
-# REST OF YOUR 1500 LINES OF CODE BELOW...
-"""
 ==============================================================================
  BLOOD FOREST CRAWLER  -  Gesture-Controlled Pixel-Art RPG (1-Round Version)
 ==============================================================================
@@ -56,6 +39,8 @@ import mediapipe as mp
 ==============================================================================
 """
 
+from __future__ import annotations
+
 import base64
 import json
 import os
@@ -79,8 +64,8 @@ except ImportError:  # pragma: no cover - environment guard
 # exist at all - so the Tasks HandLandmarker is the primary backend and the
 # legacy solution graph is used only when Tasks is unavailable.
 HAND_LANDMARKER_URL = (
-    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
-    "hand_landmarker/float16/1/hand_landmarker.task"
+    "https://raw.githubusercontent.com/google-ai-edge/mediapipe/main/"
+    "mediapipe/tasks/testdata/vision/hand_landmarker.task"
 )
 HAND_LANDMARKER_PATH = os.path.join(
     os.path.expanduser("~"), ".cache", "bfc", "hand_landmarker.task")
