@@ -1,8 +1,9 @@
+"""
 ==============================================================================
  BLOOD FOREST CRAWLER  -  Gesture-Controlled Pixel-Art RPG (1-Round Version)
 ==============================================================================
  A single-file, web-based pixel-art RPG played with real-time webcam hand
- gestures.  Designed to run inside Jupyter Notebook / Google Colab, where the
+ gestures. Designed to run inside Jupyter Notebook / Google Colab, where the
  browser owns the webcam + UI (HTML/CSS/JS) and Python owns the vision
  pipeline (OpenCV + MediaPipe) and the combat state machine.
 
@@ -17,25 +18,25 @@
                      -> JS bridge
 
  Hand tracking uses `mediapipe.tasks.vision.HandLandmarker` (works on
- #mediapipe 1.x, where `mp.solutions` no longer exists) and falls back to the
+ mediapipe 1.x, where `mp.solutions` no longer exists) and falls back to the
  legacy `mp.solutions.hands` graph on older wheels.
 
  LAYOUT OF THIS FILE
  -------------------
-   1.  Configuration & balance constants
-   2.  Gesture recognition (MediaPipe / OpenCV)
-   3.  Combat engine (pure Python, no I/O)
-   4.  Front-end: CSS (theme, sprites, animations)
-   5.  Front-end: HTML (stage, HUD, webcam, cooldown ring, combat log)
-   6.  Front-end: JS (camera capture + UI mutation API)
-   7.  JS bridge helpers (safe value escaping, eval_js abstraction)
-   8.  Main game loop / entry point
+   1. Configuration & balance constants
+   2. Gesture recognition (MediaPipe / OpenCV)
+   3. Combat engine (pure Python, no I/O)
+   4. Front-end: CSS (theme, sprites, animations)
+   5. Front-end: HTML (stage, HUD, webcam, cooldown ring, combat log)
+   6. Front-end: JS (camera capture + UI mutation API)
+   7. JS bridge helpers (safe value escaping, eval_js abstraction)
+   8. Main game loop / entry point
 
  RUN
  ---
-   Google Colab :  !pip install mediapipe opencv-python
-                   %run blood_forest_crawler.py       (or paste into a cell)
-   Jupyter      :  same, requires a browser with webcam permission
+   Google Colab : !pip install mediapipe opencv-python
+                  %run blood_forest_crawler.py (or paste into a cell)
+   Jupyter      : same, requires a browser with webcam permission
 ==============================================================================
 """
 
@@ -53,7 +54,7 @@ from typing import Callable, List, Optional
 import cv2
 import numpy as np
 
-# MediaPipe is imported lazily-ish so the module can still be inspected without
+# MediaPipe is imported lazily so the module can still be inspected without
 # it, but the game itself requires it.
 try:
     import mediapipe as mp
@@ -64,11 +65,12 @@ except ImportError:  # pragma: no cover - environment guard
 # exist at all - so the Tasks HandLandmarker is the primary backend and the
 # legacy solution graph is used only when Tasks is unavailable.
 HAND_LANDMARKER_URL = (
-    "https://raw.githubusercontent.com/google-ai-edge/mediapipe/main/"
-    "mediapipe/tasks/testdata/vision/hand_landmarker.task"
+    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
+    "hand_landmarker/float16/1/hand_landmarker.task"
 )
 HAND_LANDMARKER_PATH = os.path.join(
-    os.path.expanduser("~"), ".cache", "bfc", "hand_landmarker.task")
+    os.path.expanduser("~"), ".cache", "bfc", "hand_landmarker.task"
+)
 
 
 # =============================================================================
@@ -88,10 +90,14 @@ PLAYER_MAX_HP = 100
 SWORD, DAGGER, SHIELD, POTION = "SWORD", "DAGGER", "SHIELD", "POTION"
 NONE = "NONE"
 
-ACTION_ICONS = {SWORD: "\u2694\ufe0f", DAGGER: "\U0001f5e1\ufe0f",
-                SHIELD: "\U0001f6e1\ufe0f", POTION: "\U0001f9ea"}
+ACTION_ICONS = {
+    SWORD: "\u2694\ufe0f",
+    DAGGER: "\U0001f5e1\ufe0f",
+    SHIELD: "\U0001f6e1\ufe0f",
+    POTION: "\U0001f9ea",
+}
 
-# Rock-paper-scissors table:  BEATS[a] is the action that `a` defeats.
+# Rock-paper-scissors table: BEATS[a] is the action that `a` defeats.
 BEATS = {SWORD: DAGGER, DAGGER: SHIELD, SHIELD: SWORD}
 
 
@@ -106,9 +112,9 @@ class Monster:
     face: str            # glyph shown inside the enemy portrait frame
 
 
-# Single monster encounter for a 1-round game[cite: 1]
+# Single monster encounter for a 1-round game
 MONSTERS: List[Monster] = [
-    Monster("BLOOD FIEND",     70,  8, "m-fiend",  "#ff3b30", "\U0001f479"),
+    Monster("BLOOD FIEND", 70, 8, "m-fiend", "#ff3b30", "\U0001f479"),
 ]
 
 
@@ -140,7 +146,7 @@ class GestureRecognizer:
       * the legacy ``mp.solutions.hands.Hands`` graph otherwise.
 
     Both backends expose the same 21 landmark indices, so the pose logic below
-    is shared.  Finger extension is measured *relative to hand scale*
+    is shared. Finger extension is measured *relative to hand scale*
     (wrist -> middle MCP distance) so classification is invariant to how close
     the player sits to the camera.
     """
@@ -163,7 +169,8 @@ class GestureRecognizer:
             from mediapipe.tasks.python import vision as mp_vision
 
             model = ensure_hand_landmarker_model(
-                model_path or HAND_LANDMARKER_PATH)
+                model_path or HAND_LANDMARKER_PATH
+            )
             options = mp_vision.HandLandmarkerOptions(
                 base_options=mp_python.BaseOptions(model_asset_path=model),
                 running_mode=mp_vision.RunningMode.VIDEO,
@@ -173,7 +180,8 @@ class GestureRecognizer:
                 min_tracking_confidence=tracking_confidence,
             )
             self._landmarker = mp_vision.HandLandmarker.create_from_options(
-                options)
+                options
+            )
             self.backend = "tasks"
         except Exception as exc:            # noqa: BLE001 - fall back below
             tasks_error = exc
@@ -186,7 +194,8 @@ class GestureRecognizer:
                     "Could not initialise MediaPipe hand tracking: the Tasks "
                     f"backend failed ({tasks_error}) and this mediapipe build "
                     "exposes no `solutions.hands`. Try: "
-                    "pip install -U 'mediapipe>=0.10.9'")
+                    "pip install -U 'mediapipe>=0.10.9'"
+                )
             self._hands = solutions.hands.Hands(
                 static_image_mode=False,
                 max_num_hands=1,
@@ -209,20 +218,25 @@ class GestureRecognizer:
         """A finger counts as open when its tip is meaningfully farther from
         the wrist than its PIP joint, normalised by hand scale."""
         s = self._scale(lm)
-        return (self._dist(lm[tip], lm[WRIST]) -
-                self._dist(lm[pip], lm[WRIST])) / s > 0.28
+        return (
+            self._dist(lm[tip], lm[WRIST]) - self._dist(lm[pip], lm[WRIST])
+        ) / s > 0.28
 
     def _thumb_open(self, lm) -> bool:
         s = self._scale(lm)
-        return (self._dist(lm[THUMB_TIP], lm[WRIST]) -
-                self._dist(lm[THUMB_MCP], lm[WRIST])) / s > 0.42
+        return (
+            self._dist(lm[THUMB_TIP], lm[WRIST])
+            - self._dist(lm[THUMB_MCP], lm[WRIST])
+        ) / s > 0.42
 
     # -- backend dispatch --------------------------------------------------
     def _landmarks(self, rgb: np.ndarray, timestamp_ms: int):
         """Return the 21 landmarks of the first detected hand, or None."""
         if self._landmarker is not None:                    # Tasks API
-            image = mp.Image(image_format=mp.ImageFormat.SRGB,
-                             data=np.ascontiguousarray(rgb))
+            image = mp.Image(
+                image_format=mp.ImageFormat.SRGB,
+                data=np.ascontiguousarray(rgb),
+            )
             # The VIDEO running mode rejects non-increasing timestamps.
             timestamp_ms = max(timestamp_ms, self._last_ts + 1)
             self._last_ts = timestamp_ms
@@ -240,7 +254,7 @@ class GestureRecognizer:
     # -- public API -------------------------------------------------------
     def classify(self, bgr_frame: np.ndarray,
                  timestamp_ms: Optional[int] = None):
-        """Return (action, frame).  Action is NONE when there is no clear pose.
+        """Return (action, frame). Action is NONE when there is no clear pose.
 
         ``timestamp_ms`` must be monotonically increasing for the Tasks VIDEO
         running mode; it is derived from the wall clock when omitted.
@@ -264,8 +278,10 @@ class GestureRecognizer:
             4               : SHIELD  (open palm)
         anything else is ambiguous and reported as NONE.
         """
-        raised = sum(self._finger_open(lm, t, p)
-                     for t, p in zip(FINGER_TIPS, FINGER_PIPS))
+        raised = sum(
+            self._finger_open(lm, t, p)
+            for t, p in zip(FINGER_TIPS, FINGER_PIPS)
+        )
         thumb = self._thumb_open(lm)
 
         if raised == 0:
@@ -384,8 +400,10 @@ class CombatEngine:
                 st.player_hp += STAGE_CLEAR_HEAL
                 self._clamp_player()
                 ev.player_heal += STAGE_CLEAR_HEAL
-                ev.text = (f"\u2728 {mon.name} SLAIN! +{STAGE_CLEAR_HEAL} HP "
-                           f"\u2014 {st.monster.name} EMERGES!")
+                ev.text = (
+                    f"\u2728 {mon.name} SLAIN! +{STAGE_CLEAR_HEAL} HP "
+                    f"\u2014 {st.monster.name} EMERGES!"
+                )
                 ev.stage_cleared = True
         elif st.player_hp <= 0:
             st.finished, st.won = True, False
@@ -407,7 +425,8 @@ GAME_CSS = """
   --gold:       #c8aa6e;   --gold-lt: #f0e6d2;   --gold-dk: #785a28;
   --blue-0:     #010a13;   --blue-1:  #0a1428;   --blue-2:  #0f2233;
   --teal:       #0ac8b9;   --hp:      #17c964;   --enemy:   #e84057;
-  --mana:       #0397ab; }
+  --mana:       #0397ab;
+}
 
 #bfc-root, #bfc-root * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1363,7 +1382,7 @@ def js_arg(value) -> str:
 
     Everything goes through ``json.dumps`` so quotes, backslashes, newlines and
     non-ASCII glyphs (emoji in combat text!) can never break the generated
-    ``eval_js`` snippet.  ``ensure_ascii`` keeps the payload transport-safe.
+    ``eval_js`` snippet. ``ensure_ascii`` keeps the payload transport-safe.
     """
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -1454,33 +1473,51 @@ class BloodForestCrawler:
 
     def push_hp(self) -> None:
         st = self.engine.state
-        self.bridge.call("bfcSetHP", st.player_hp, PLAYER_MAX_HP,
-                         st.monster_hp, st.monster.max_hp, st.monster.name,
-                         ignore_result=True)
+        self.bridge.call(
+            "bfcSetHP",
+            st.player_hp,
+            PLAYER_MAX_HP,
+            st.monster_hp,
+            st.monster.max_hp,
+            st.monster.name,
+            ignore_result=True,
+        )
 
     def push_ring(self, progress: float, text: str, icon: str,
                   color: str, sub: str = "") -> None:
-        self.bridge.call("bfcSetRing", round(progress, 3), text, icon, color,
-                         sub, ignore_result=True)
+        self.bridge.call(
+            "bfcSetRing",
+            round(progress, 3),
+            text,
+            icon,
+            color,
+            sub,
+            ignore_result=True,
+        )
 
     def push_stage(self) -> None:
         st = self.engine.state
-        self.bridge.call("bfcSetStage", st.stage, len(MONSTERS),
-                         st.monster.face, ignore_result=True)
+        self.bridge.call(
+            "bfcSetStage",
+            st.stage,
+            len(MONSTERS),
+            st.monster.face,
+            ignore_result=True,
+        )
 
     # -- per-frame logic ---------------------------------------------------
     def _update_hud(self, action: str, now: float) -> None:
         """Drive the cast ring and the ability bar from the input state."""
         cooling = now < self._cooldown_until
-        hold = 0.0
 
         # while recharging or channelling, the browser owns the ring: its
         # countdown animates on its own clock (see bfcStartCooldown/bfcStartCast)
         if cooling or self._held_action != NONE:
             return
 
-        self.push_ring(0.0, "EQUIP ITEM", "\u2753", "#5f7a90",
-                       "SHOW A GESTURE")
+        self.push_ring(
+            0.0, "EQUIP ITEM", "\u2753", "#5f7a90", "SHOW A GESTURE"
+        )
         self.bridge.call("bfcSetAbilities", "", 0.0, False, ignore_result=True)
         self.bridge.call("bfcSetCharge", 1.0, ignore_result=True)
 
@@ -1493,8 +1530,9 @@ class BloodForestCrawler:
         self.bridge.call("bfcCastFx", action, ignore_result=True)
         # the browser animates the 3s countdown on its own clock, so the ring
         # keeps ticking smoothly between our (slower) frame round-trips
-        self.bridge.call("bfcStartCooldown", COOLDOWN_SECONDS,
-                         ignore_result=True)
+        self.bridge.call(
+            "bfcStartCooldown", COOLDOWN_SECONDS, ignore_result=True
+        )
         if action != POTION:
             self.bridge.call("bfcAnimate", "hero", ignore_result=True)
         if event.monster_hit:
@@ -1502,19 +1540,36 @@ class BloodForestCrawler:
 
         # floating combat text, LoL-style
         if event.monster_damage:
-            self.bridge.call("bfcFloat", "monster", f"-{event.monster_damage}",
-                             "crit" if event.crit else "dmg", ignore_result=True)
+            self.bridge.call(
+                "bfcFloat",
+                "monster",
+                f"-{event.monster_damage}",
+                "crit" if event.crit else "dmg",
+                ignore_result=True,
+            )
         if event.player_heal:
-            self.bridge.call("bfcFloat", "hero", f"+{event.player_heal}",
-                             "heal", ignore_result=True)
+            self.bridge.call(
+                "bfcFloat",
+                "hero",
+                f"+{event.player_heal}",
+                "heal",
+                ignore_result=True,
+            )
         if event.player_damage:
-            self.bridge.call("bfcFloat", "hero", f"-{event.player_damage}",
-                             "dmg", ignore_result=True)
+            self.bridge.call(
+                "bfcFloat",
+                "hero",
+                f"-{event.player_damage}",
+                "dmg",
+                ignore_result=True,
+            )
 
         if event.stage_cleared and not event.victory:
-            self.bridge.call("bfcSetMonsterSprite",
-                             self.engine.state.monster.css_class,
-                             ignore_result=True)
+            self.bridge.call(
+                "bfcSetMonsterSprite",
+                self.engine.state.monster.css_class,
+                ignore_result=True,
+            )
             self.push_stage()
             self.bridge.call("bfcBanner", "STAGE CLEARED", ignore_result=True)
         elif event.victory:
@@ -1526,8 +1581,14 @@ class BloodForestCrawler:
         self._dealt += event.monster_damage
         self._taken += event.player_damage
         self._healed += event.player_heal
-        self.bridge.call("bfcSetStats", self._casts, self._dealt,
-                         self._taken, self._healed, ignore_result=True)
+        self.bridge.call(
+            "bfcSetStats",
+            self._casts,
+            self._dealt,
+            self._taken,
+            self._healed,
+            ignore_result=True,
+        )
 
         self.push_hp()
         self.bridge.call("bfcLog", event.text, ignore_result=True)
@@ -1536,25 +1597,32 @@ class BloodForestCrawler:
     def run(self, max_seconds: float = 900.0) -> GameState:
         if not self.bridge.available:
             raise RuntimeError(
-                "No JavaScript bridge: run this inside Colab or Jupyter.")
+                "No JavaScript bridge: run this inside Colab or Jupyter."
+            )
 
         self.render_ui()
         self.recognizer = GestureRecognizer()
 
         init = self.bridge.call("bfcInitCamera", *self.cam_size)
         if isinstance(init, str) and init.startswith("ERR:"):
-            self.bridge.call("bfcLog", f"CAMERA ERROR: {init[4:]}",
-                             ignore_result=True)
+            self.bridge.call(
+                "bfcLog", f"CAMERA ERROR: {init[4:]}", ignore_result=True
+            )
             return self.engine.state
 
         self.push_hp()
         self.push_stage()
-        self.bridge.call("bfcSetMonsterSprite",
-                         self.engine.state.monster.css_class, ignore_result=True)
+        self.bridge.call(
+            "bfcSetMonsterSprite",
+            self.engine.state.monster.css_class,
+            ignore_result=True,
+        )
         self.bridge.call("bfcBanner", "STAGE 1", ignore_result=True)
-        self.bridge.call("bfcLog",
-                         "STAGE 1 \u2014 BLOOD FIEND BLOCKS THE PATH!",
-                         ignore_result=True)
+        self.bridge.call(
+            "bfcLog",
+            "STAGE 1 \u2014 BLOOD FIEND BLOCKS THE PATH!",
+            ignore_result=True,
+        )
 
         frame_budget = 1.0 / TARGET_FPS
         deadline = time.time() + max_seconds
@@ -1575,17 +1643,22 @@ class BloodForestCrawler:
                             # new gesture locked in: start the cast countdown
                             self._held_action = action
                             self._hold_started = self._last_seen = now
-                            self.bridge.call("bfcStartCast", action,
-                                             CAST_SECONDS,
-                                             ACTION_ICONS[action],
-                                             ignore_result=True)
+                            self.bridge.call(
+                                "bfcStartCast",
+                                action,
+                                CAST_SECONDS,
+                                ACTION_ICONS[action],
+                                ignore_result=True,
+                            )
                         else:
                             self._last_seen = now
                             if now - self._hold_started >= CAST_SECONDS:
                                 self._commit(action, now)
                                 continue
-                    elif (self._held_action != NONE and
-                          now - self._last_seen > GESTURE_GRACE):
+                    elif (
+                        self._held_action != NONE
+                        and now - self._last_seen > GESTURE_GRACE
+                    ):
                         # gesture lost for too long: the channel breaks
                         self._held_action, self._hold_started = NONE, 0.0
                         self.bridge.call("bfcCancelCast", ignore_result=True)
@@ -1604,12 +1677,16 @@ class BloodForestCrawler:
 
         st = self.engine.state
         if st.finished:
-            self.push_ring(1.0, "VICTORY" if st.won else "DEFEATED",
-                           "\U0001f3c6" if st.won else "\U0001f480",
-                           "#c8aa6e" if st.won else "#e84057",
-                           "RUN COMPLETE")
-            self.bridge.call("bfcSetAbilities", "", 0.0, True,
-                             ignore_result=True)
+            self.push_ring(
+                1.0,
+                "VICTORY" if st.won else "DEFEATED",
+                "\U0001f3c6" if st.won else "\U0001f480",
+                "#c8aa6e" if st.won else "#e84057",
+                "RUN COMPLETE",
+            )
+            self.bridge.call(
+                "bfcSetAbilities", "", 0.0, True, ignore_result=True
+            )
         return st
 
 
