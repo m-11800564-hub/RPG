@@ -407,8 +407,7 @@ GAME_CSS = """
   --gold:       #c8aa6e;   --gold-lt: #f0e6d2;   --gold-dk: #785a28;
   --blue-0:     #010a13;   --blue-1:  #0a1428;   --blue-2:  #0f2233;
   --teal:       #0ac8b9;   --hp:      #17c964;   --enemy:   #e84057;
-  --mana:       #0397ab;
-}
+  --mana:       #0397ab; }
 
 #bfc-root, #bfc-root * { box-sizing: border-box; margin: 0; padding: 0; }
 
