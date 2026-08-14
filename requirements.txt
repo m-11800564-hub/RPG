@@ -1,9 +1,4 @@
-streamlit>=1.30.0
-mediapipe>=0.10.0
-numpy<2.0.0
-pip install streamlit streamlit-webrtc mediapipe opencv-python
-pip uninstall opencv-python opencv-python-headless
-pip install opencv-python-headless
-pip install --upgrade pip setuptools wheel
-pip install "mediapipe>=0.10.9"
-pip install streamlit streamlit-webrtc mediapipe opencv-python-headless
+streamlit
+streamlit-webrtc
+mediapipe
+opencv-python-headless
