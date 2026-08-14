@@ -17,7 +17,7 @@
                      -> JS bridge
 
  Hand tracking uses `mediapipe.tasks.vision.HandLandmarker` (works on
- mediapipe 1.x, where `mp.solutions` no longer exists) and falls back to the
+ #mediapipe 1.x, where `mp.solutions` no longer exists) and falls back to the
  legacy `mp.solutions.hands` graph on older wheels.
 
  LAYOUT OF THIS FILE
